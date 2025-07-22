@@ -4,18 +4,14 @@ import numpy as np
 import pyarrow.parquet as pq
 from scipy import sparse
 
-def weight_top10(group, n = 10) -> pd.DataFrame:
+def flag_top25(group) -> pd.DataFrame:
     """
-    기관 별 TOP-10 주식들은 가중치(10~1)를 부여하고 나머지는 0으로 변환
+    기관 별 TOP-25 주식은 1 나머지는 0을 부여
     """
-    cnt = min( 10 , len(group))
-    group = group.sort_values("TOTAL_VALUE", ascending=False).copy()
-    group["WEIGHT_TOP10"] = 0 # 가중치 초기화
-    
-    top_idx = group.head(n).index
-    rank_to_weight = np.arange(n, 0, -1)[:cnt] # 기업이 보유한 종목수가 10미만일 경우에도 10부터 내림차순으로 가중치 부여
-
-    group.loc[top_idx, "WEIGHT_TOP10"] = rank_to_weight
+    group = group.sort_values("TOTAL_VALUE", ascending=False)
+    cutoff = max(1, int(np.ceil(len(group) * 0.25))) #최소 1개는 1로 표시될 수 있도록
+    group["TOP25_FLAG"] = 0
+    group.loc[group.head(cutoff).index, "TOP25_FLAG"] = 1
     return group
 
 def merge_data(DATA_DIR = "2023q4_form13f/") -> pd.DataFrame:
@@ -44,8 +40,8 @@ def merge_data(DATA_DIR = "2023q4_form13f/") -> pd.DataFrame:
     # 기관이 보유중인 종목들의 금액을 전부 합산
     holdings['TOTAL_VALUE'] = holdings.groupby(["CIK", "CUSIP"])["VALUE"].transform("sum")
 
-    # 상위 10개 기업에 대하여 10~1까지 가중치 부여
-    holdings = holdings.groupby("CIK",group_keys=False).apply(weight_top10)
-    
+    # 기업이 보유중인 상위 25% 기업들은 1 나머지는 0부여
+    holdings = holdings.groupby("CIK",group_keys=False).apply(flag_top25)
+
     holdings.to_parquet(f"{DATA_DIR}holdings_data.parquet", index = False)
     return holdings
