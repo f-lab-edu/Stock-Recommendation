@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn as nn
 import random
 from deepctr_torch.inputs import SparseFeat, DenseFeat, build_input_features, create_embedding_matrix,embedding_lookup
+from deepctr_torch.models.basemodel import BaseModel
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, log_loss
@@ -97,10 +98,11 @@ class LinearPart(nn.Module):
             dense_logit = torch.zeros(X.size(0), 1).to(self.device)
         return sparse_logit + dense_logit 
 
-
-class DeepFM(nn.Module):
-    def __init__(self, feature_columns, embed_dim = 8, hidden_units=(256, 128, 64), device = "cpu"):
-        super().__init__()
+class DeepFM(BaseModel):
+    def __init__(self, feature_columns, embed_dim = 8, hidden_units=(256, 128, 64), 
+                 l2_reg_linear = 1e-5, l2_reg_embedding = 1e-5, l2_reg_dnn = 0, device = "cpu"):
+        super(DeepFM, self).__init__(feature_columns, feature_columns, l2_reg_linear = l2_reg_linear, l2_reg_embedding = l2_reg_embedding,
+                                     device = device)
         self.device = device
         self.feature_columns = feature_columns
 
@@ -109,16 +111,26 @@ class DeepFM(nn.Module):
         # 모든 범주형 feature별로 nn.Embedding레이어를 생성한 딕셔너리
         self.embedding_dict = create_embedding_matrix(feature_columns, device = device)
 
+        #embedding 정규화 추가
+        self.add_regularization_weight(self.embedding_dict.parameters(), l2 = l2_reg_embedding)
+
         # sparse 및 dense feature 분류
         self.sparse_feats = [fc for fc in feature_columns if isinstance(fc, SparseFeat)]
         self.dense_feats = [fc for fc in feature_columns if isinstance(fc, DenseFeat)]
 
         self.fm = FM()
         self.linear_model = LinearPart(feature_columns, device).to(device)
-        
+        # Linear 파트 정규화 추가
+        self.add_regularization_weight(self.linear_model.parameters(), l2 = l2_reg_linear)
+
         dnn_input_dim = sum(fc.embedding_dim if isinstance(fc, SparseFeat) else fc.dimension for fc in feature_columns)
         self.dnn = DNN(dnn_input_dim, hidden_units)
         self.dnn_out = nn.Linear(hidden_units[-1],1).to(device)
+        
+        # DNN hidden layers weight 정규화 추가
+        self.add_regularization_weight(filter(lambda x: "weight" in x[0] and "bn" not in x[0], self.dnn.named_parameters()), l2 = l2_reg_dnn)
+        # DNN 출력층 weight 정규화 추가
+        self.add_regularization_weight(self.dnn_out.weight, l2=l2_reg_dnn)       
         self.sigmoid = nn.Sigmoid()
         
         self.dense_idx = [self.feature_index[fc.name][0] for fc in self.dense_feats]
@@ -143,3 +155,4 @@ class DeepFM(nn.Module):
         # 세 로짓 합산 → 시그모이드
         logit  = fm_logit + linear_logit + dnn_logit
         return self.sigmoid(logit)                   
+

@@ -1,8 +1,54 @@
-from pathlib import Path
 import pandas as pd
 import numpy as np
 import pyarrow.parquet as pq
+import torch
+from torch.utils.data import Dataset
 from scipy import sparse
+from pathlib import Path
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from deepctr_torch.inputs import SparseFeat, DenseFeat
+
+class HoldingsDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = torch.from_numpy(X).float()
+        self.y = torch.from_numpy(y).float()
+    
+    def __len__(self, idx):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+def preprocess_data(df, sparse_cols, dense_cols, target_col):
+    """
+    데이터 전처리
+    continuous feature -> Standard Scaler
+    categorical feature -> Label Encoder
+    """
+    y = df[target_col].values
+    encoders = {}
+    for col in sparse_cols:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col].astype(str))
+        encoders[col] = le
+    
+    scaler = StandardScaler()
+    df[dense_cols] = scaler.fit_transform(df[dense_cols])
+    X = df[sparse_cols + dense_cols].values.astype(np.float32)
+    return X, y, encoders, scaler
+
+def build_feature_columns(df, sparse_cols, dense_cols) -> list:
+    """
+    continuos 및 categorical feature들을 입력받아 deepfm 모델 입력용 feature column 생성
+    """
+    feature_columns = []
+    for col in sparse_cols:
+        vocab_size = df[col].nunique()
+        feature_columns.append(SparseFeat(name = col, vocabulary_size = vocab_size, embedding_dim = 8))
+
+    for col in dense_cols:
+        feature_columns.append(DenseFeat(name=col, dimension = 1))
+    return feature_columns
 
 def flag_top25(group) -> pd.DataFrame:
     """

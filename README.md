@@ -12,6 +12,6 @@
 5. utils.py -> 향후 각 기타 함수들 관리용 파일(현재는 seed 고정만 있음)
 
 ## b. To-Do List
-1. class DeepFM에 add_regularization_weight 구현 및 검증  
+1. class DeepFM에 add_regularization_weight 구현 및 검증 -> deepctr-torch basemodel.py를 이용하는 것으로 변경
 2. CLI로 코드 실행 가능하도록 업데이트 예정  
 3. 기존 데이터셋에 feature 추가를 위한 데이터 크롤러 및 데이터 전처리 코드 업데이트 예정
