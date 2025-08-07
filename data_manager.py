@@ -1,12 +1,14 @@
-import pandas as pd
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import pyarrow.parquet as pq
 import torch
-from torch.utils.data import Dataset
+from deepctr_torch.inputs import DenseFeat, SparseFeat
 from scipy import sparse
-from pathlib import Path
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from deepctr_torch.inputs import SparseFeat, DenseFeat
+from torch.utils.data import Dataset
+
 
 class HoldingsDataset(Dataset):
     def __init__(self, X, y):

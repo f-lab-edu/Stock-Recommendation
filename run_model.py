@@ -1,16 +1,20 @@
-import torch
-import pandas as pd
-import numpy as np
-import torch.nn as nn
 import random
-from deepctr_torch.inputs import SparseFeat, DenseFeat, build_input_features, create_embedding_matrix,embedding_lookup
+
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+from deepctr_torch.inputs import (DenseFeat, SparseFeat, build_input_features,
+                                  create_embedding_matrix, embedding_lookup)
 from deepctr_torch.models import basemodel
-from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, log_loss
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from torch.utils.data import DataLoader, Dataset
+
+from data_manager import (HoldingsDataset, build_feature_columns,
+                          preprocess_data)
 from model_components import DeepFM
-from data_manager import HoldingsDataset, preprocess_data, build_feature_columns
 
 """
 현재 작업 중
