@@ -13,7 +13,7 @@ class HoldingsDataset(Dataset):
         self.X = torch.from_numpy(X).float()
         self.y = torch.from_numpy(y).float()
     
-    def __len__(self, idx):
+    def __len__(self):
         return len(self.y)
 
     def __getitem__(self, idx):
