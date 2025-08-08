@@ -57,7 +57,7 @@ def flag_top25(group) -> pd.DataFrame:
     기관 별 TOP-25 주식은 1 나머지는 0을 부여
     """
     group = group.sort_values("TOTAL_VALUE", ascending=False)
-    cutoff = max(1, int(np.ceil(len(group) * 0.25))) #최소 1개는 1로 표시될 수 있도록
+    cutoff = max(1, int(len(group) * 0.25)) #최소 1개는 1로 표시될 수 있도록
     group["TOP25_FLAG"] = 0
     group.loc[group.head(cutoff).index, "TOP25_FLAG"] = 1
     return group
