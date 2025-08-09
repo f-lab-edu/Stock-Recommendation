@@ -93,3 +93,16 @@ def merge_data(DATA_DIR = "2023q4_form13f/") -> pd.DataFrame:
 
     holdings.to_parquet(f"{DATA_DIR}holdings_data.parquet", index = False)
     return holdings
+
+def get_sector_industry(ticker):
+    """
+    yfinance 라이브러리를 이용하여 sector와 industry 조회
+    """
+    t = yf.Ticker(str(ticker))
+    try:
+        info = t.get_info()
+    except Exception:
+        info = getattr(t, "info", {}) or {}
+    if not isinstance(info, dict):
+        return None, None
+    return info.get("sector"), info.get("industry")
