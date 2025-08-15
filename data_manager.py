@@ -1,14 +1,27 @@
+import os
+import random
+import time
 from pathlib import Path
 
 import numpy as np
+import openai
 import pandas as pd
 import pyarrow.parquet as pq
 import torch
+import yfinance as yf
 from deepctr_torch.inputs import DenseFeat, SparseFeat
 from scipy import sparse
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from torch.utils.data import Dataset
+from tqdm.auto import tqdm
 
+from config import *
+from prompt import *
+
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+# openai API 키 인증
+openai.api_key = OPENAI_API_KEY
+client = openai.OpenAI()
 
 class HoldingsDataset(Dataset):
     def __init__(self, X, y):
@@ -106,3 +119,45 @@ def get_sector_industry(ticker):
     if not isinstance(info, dict):
         return None, None
     return info.get("sector"), info.get("industry")
+
+def resolve_cusip_ticker(data_path= "CUSIP_TICKER.csv", STR = SYSTEM_TICKER_RESOLVER):
+    """
+    CUSIP코드를 이용하여 ticker로 변환하는 함수
+    chatgpt api를 이용하기 때문에 완벽하게 모든 데이터를 변환하지는 못함
+
+    * CUSIP코드 -> TICKER로 매핑 가능한 데이터셋 및 웹사이트는 확인하지 못함
+    * 변환 방법은 아래 2가지 방법이 있으나 제약이 있음
+    1) FIGI API는 회사계정 메일이 필요하여 이용 불가능
+    2) POLYGONIO의 API는 분당 5회만 호출 가능
+
+    이에 따라, 조금 부정확하더라도 chatgpt api를 이용하여 변환하는 방법을 선택(약 7시간 정도 소요)
+    """
+    cusip_df = pd.read_csv(data_path)
+    if "Ticker" not in cusip_df.columns:
+        cusip_df["Ticker"] = None
+
+    for index, row in tqdm(cusip_df.iterrows(), total=len(cusip_df), desc="Resolving", unit="cusip"):
+        prompt = build_ticker_prompt(row["CUSIP"])
+        if pd.notna(row["Ticker"]):
+            #print(index)
+            continue
+        
+        for attempt in range(5):
+            try:
+                cusip = row["CUSIP"]
+                response = client.chat.completions.create(
+                model = "gpt-4o",
+                messages=[
+                    {"role": "system", "content": STR},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.0, #동일한 질문에 대하여서도 최대한 동일한 답변을 생성하도록 파라미터 설정
+                )
+                ticker = response.choices[0].message.content
+                break
+            except Exception as e:
+                if attempt == 4:
+                    ticker = f"ERROR:{type(e).__name__}"
+                time.sleep((2 ** attempt) + random.uniform(0, 0.5))
+        cusip_df.at[index, "Ticker"] = ticker
+        cusip_df.to_csv(data_path, index=False)
